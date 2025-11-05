@@ -34,38 +34,61 @@ class SettingsMixin:
 
 
         def load_settings(self):
-            """Loads settings and reward actions from JSON."""
+            """Carrega settings do JSON e preenche SOMENTE chaves ausentes com defaults."""
+            defaults = {
+                "msg_follow": "Obrigado pelo follow, @{user}! Seja bem-vindo(a)! <3",
+                "msg_sub": "WOAH! Muito obrigado pelo Sub (Tier {tier}), @{user}! Você é incrível! <3",
+                "msg_gift_sub": "WOAH! @{user} ganhou um Sub de presente! Muito obrigado! <3",
+                "msg_raid": "RAID! Sejam todos muito bem-vindos, time do @{raider}! Mandem seus emotes!",
+                "reward_actions": {},
+                "counts": {},
+                "tts_enabled": False,
+                "tts_reward_name": "",
+                "tts_voice_lang": "pt-br",
+                "tts_volume": 50,
+                "msg_cheer_alert": "{user} enviou {bits}x bits!",
+                "msg_cheer_alert_enabled": True,
+                "tts_cheer_format": "{user} enviou {bits}x e disse: {message}",
+                "tts_cheer_enabled": False,
+                "tts_cheer_min_bits": 100,
+                # "last_channel": "",
+                # "last_token": "",
+            }
+
             if os.path.exists(self.settings_file):
                 try:
                     with open(self.settings_file, 'r', encoding='utf-8') as f:
-                        self.settings = json.load(f)
-                    self.reward_actions = self.settings.get('reward_actions', {})
-                    defaults = {"msg_follow": "", "msg_sub": "", "msg_gift_sub": "", "msg_raid": "", "reward_actions": {},
-                                "tts_enabled": False,
-                                "tts_reward_name": "",
-                                "tts_voice_lang": "pt-br",
-                                "tts_volume": 50,
-                                "counts": {}
-                                }
-
-                    self.mixer_volume = self.settings.get('tts_volume', 50) / 100.0
-                    try:
-                        pygame.mixer.music.set_volume(self.mixer_volume)
-                    except Exception as e:
-                        print(f"Erro ao definir volume inicial do pygame: {e}")
-
+                        data = json.load(f)
+                    if not isinstance(data, dict):
+                        data = {}
                     updated = False
-                    for key, value in defaults.items():
-                        if key not in self.settings:
-                            self.settings[key] = value
+                    for k, v in defaults.items():
+                        if k not in data:
+                            data[k] = v
                             updated = True
-                    if updated: self.save_settings(quiet=True)
+
+                    self.settings = data
+                    self.reward_actions = self.settings.get('reward_actions', {})
+                    if updated:
+                        self.save_settings(quiet=True)
+
                 except Exception as e:
-                    self.log_message(f"❌ Erro load {self.settings_file}: {e}", "error")
-                    self.load_default_settings()
+                    self.log_message(f"❌ Erro ao carregar {self.settings_file}: {e}", "error")
+                    self.settings = defaults.copy()
+                    self.reward_actions = {}
+                    self.save_settings(quiet=True)
             else:
-                self.load_default_settings()
+                self.settings = defaults.copy()
+                self.reward_actions = {}
                 self.save_settings(quiet=True)
+                
+            self.mixer_volume = float(self.settings.get('tts_volume', 50)) / 100.0
+            try:
+                if not pygame.mixer.get_init():
+                    pygame.mixer.init()
+                pygame.mixer.music.set_volume(self.mixer_volume)
+            except Exception as e:
+                print(f"Erro ao definir volume inicial do pygame: {e}")
 
 
         def save_settings(self, quiet=False):

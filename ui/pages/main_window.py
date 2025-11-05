@@ -7,7 +7,8 @@ from .mixins.activity_mixin import ActivityMixin
 from .mixins.settings_mixin import SettingsMixin
 from .mixins.chat_mixin import ChatMixin
 from .mixins.utils_mixin import UtilsMixin
+from .mixins.profiles_mixin import ProfilesMixin
 
-class ModernTwitchChatBotGUI(ModernTwitchBaseView, BotMixin, CommandsMixin, TimersMixin, RewardsTtsMixin, ActivityMixin, SettingsMixin, ChatMixin, UtilsMixin):
+class ModernTwitchChatBotGUI(ModernTwitchBaseView, BotMixin, CommandsMixin, TimersMixin, RewardsTtsMixin, ActivityMixin, SettingsMixin, ChatMixin, UtilsMixin, ProfilesMixin):
     """Refatorado automaticamente em mixins; conserva nomes de métodos/atributos."""
     pass

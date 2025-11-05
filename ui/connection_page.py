@@ -40,6 +40,20 @@ class ConnectionPage(ctk.CTkFrame):
 
         input_frame = ctk.CTkFrame(connection_frame, fg_color=self.app.colors['surface'])
         input_frame.pack(fill=tk.X, padx=15, pady=10)
+
+        profiles_frame = ctk.CTkFrame(connection_frame, fg_color=self.app.colors['surface'])
+        profiles_frame.pack(fill=tk.X, padx=15, pady=(0,10))
+        ctk.CTkLabel(profiles_frame, text="📦 Perfis do Bot", font=ctk.CTkFont(size=13, weight="bold")).grid(row=0, column=0, sticky="w", padx=(8,8), pady=(8,4))
+        profiles_frame.grid_columnconfigure(1, weight=1)
+        export_btn = ctk.CTkButton(profiles_frame, text="💾 Exportar Perfil", width=160,
+                                   command=self.app.export_profile,
+                                   fg_color=self.app.colors['accent'], hover_color='#0099cc')
+        import_btn = ctk.CTkButton(profiles_frame, text="📂 Importar Perfil", width=160,
+                                   command=self.app.import_profile,
+                                   fg_color=self.app.colors['accent'], hover_color='#0099cc')
+        export_btn.grid(row=1, column=0, padx=8, pady=(0,8), sticky="w")
+        import_btn.grid(row=1, column=1, padx=8, pady=(0,8), sticky="w")
+    
         input_frame.grid_columnconfigure(1, weight=1)
         input_frame.grid_columnconfigure(2, weight=0)
 
