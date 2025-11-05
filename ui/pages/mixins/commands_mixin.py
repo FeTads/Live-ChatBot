@@ -2,6 +2,8 @@ import json
 import os
 import re
 import customtkinter as ctk
+import time
+
 
 from ui.custom_dialog import CustomDialog
 from ui.edit_command_dialog import EditCommandDialog
@@ -9,6 +11,9 @@ from ui.toast_notification import ToastNotification
 
 
 class CommandsMixin:
+        DEFAULT_CMD_CD_GLOBAL = 2
+        DEFAULT_CMD_CD_USER   = 2
+
         def load_commands_from_json(self):
             """Carregar comandos do arquivo JSON"""
             if os.path.exists(self.commands_file):
@@ -73,32 +78,54 @@ class CommandsMixin:
 
 
         def add_command(self):
-            """Adicionar novo comando"""
+            """Adicionar novo comando (com cooldowns e bypass)."""
             cmd = self.new_cmd_var.get().strip()
             response = self.new_response_var.get().strip()
+            permission = (self.new_cmd_permission_var.get() or "Everyone").lower()
 
-            permission = self.new_cmd_permission_var.get().lower()
+            cd_global_str = (self.new_cmd_cd_global_var.get() or "").strip()
+            cd_user_str = (self.new_cmd_cd_user_var.get() or "").strip()
+            bypass_mods = bool(self.new_cmd_bypass_mods_var.get())
 
             if not cmd.startswith('!'):
                 cmd = '!' + cmd
 
-            if cmd and response:
-                self.default_commands[cmd] = {
-                    "response": response,
-                    "type": "static",
-                    "permission": permission
-                }
-                self.new_cmd_var.set("")
-                self.new_response_var.set("")
-                self.new_cmd_permission_var.set("Everyone")
-                self.refresh_commands_list()
-                self.save_commands()
-                if self.bot:
-                    self.bot.config['commands'] = self.default_commands
-                self.log_message(f"✅ Comando {cmd} (Perm: {permission}) adicionado!", "success")
-            else:
+            if not cmd or not response:
                 CustomDialog(master=self.root, title="⚠️ Aviso", text="Preencha o comando e a resposta!", colors=self.colors, dialog_type='warning')
+                return
 
+            try:
+                cd_global = int(cd_global_str) if cd_global_str else 3
+            except ValueError:
+                cd_global = 3
+            try:
+                cd_user = int(cd_user_str) if cd_user_str else 10
+            except ValueError:
+                cd_user = 10
+            cd_global = max(0, cd_global)
+            cd_user = max(0, cd_user)
+
+            self.default_commands[cmd] = {
+                "response": response,
+                "type": "static",
+                "permission": permission,
+                "cooldown_global": cd_global,
+                "cooldown_user": cd_user,
+                "cooldown_bypass_mods": bypass_mods
+            }
+
+            self.new_cmd_var.set("")
+            self.new_response_var.set("")
+            self.new_cmd_permission_var.set("Everyone")
+            self.new_cmd_cd_global_var.set("3")
+            self.new_cmd_cd_user_var.set("10")
+            self.new_cmd_bypass_mods_var.set(True)
+
+            self.refresh_commands_list()
+            self.save_commands()
+            if self.bot:
+                self.bot.config['commands'] = self.default_commands
+            self.log_message(f"✅ Comando {cmd} (perm: {permission}, cdG:{cd_global}s, cdU:{cd_user}s, bypassMods:{bypass_mods}) adicionado!", "success")
 
         def edit_command(self):
             """Identifica o comando selecionado e abre o modal de edição."""
@@ -271,3 +298,71 @@ class CommandsMixin:
             status = "DESABILITADO" if new_state else "HABILITADO"
             self.log_message(f"🔄 Comando '{command_name}' agora está {status}.", "system")
 
+        def _cd_now(self) -> float:
+            return time.monotonic()
+
+        def _cd_init_maps(self):
+            if not hasattr(self, "_cd_global"):
+                self._cd_global = {}
+            if not hasattr(self, "_cd_user"):
+                self._cd_user = {}
+
+        def _cd_get_cfg(self, cmd: str, cfg: dict) -> tuple[int, int, bool]:
+            """
+            Retorna (cd_global, cd_user, bypass_mods).
+            cooldown_* em segundos; bypass_mods True por padrão.
+            """
+            g = cfg.get("cooldown_global", self.DEFAULT_CMD_CD_GLOBAL)
+            u = cfg.get("cooldown_user",   self.DEFAULT_CMD_CD_USER)
+            bypass_mods = bool(cfg.get("cooldown_bypass_mods", True))
+            try:
+                g = int(g)
+            except Exception:
+                g = self.DEFAULT_CMD_CD_GLOBAL
+            try:
+                u = int(u)
+            except Exception:
+                u = self.DEFAULT_CMD_CD_USER
+            return max(0, g), max(0, u), bypass_mods
+
+        def check_command_cooldown(self, cmd: str, user: str, cfg: dict, permissions: dict) -> tuple[bool, int]:
+            """
+            Checa se o comando está em cooldown.
+            Retorna (permitido, segundos_restantes).
+            - Respeita cooldown_global e cooldown_user.
+            - Se cooldown_bypass_mods=True, mods/broadcaster ignoram cooldown.
+            """
+            self._cd_init_maps()
+            now = self._cd_now()
+            cd_g, cd_u, bypass_mods = self._cd_get_cfg(cmd, cfg)
+
+            if bypass_mods and (permissions.get("is_mod") or permissions.get("is_broadcaster")):
+                return True, 0
+
+            # Global
+            g_until = self._cd_global.get(cmd, 0.0)
+            if now < g_until:
+                return False, int(round(g_until - now))
+
+            # Por usuário
+            u_map = self._cd_user.setdefault(cmd, {})
+            u_until = u_map.get(user.lower(), 0.0)
+            if now < u_until:
+                return False, int(round(u_until - now))
+
+            return True, 0
+
+        def arm_command_cooldown(self, cmd: str, user: str, cfg: dict, permissions: dict = None):
+            """
+            Arma os relógios de cooldown após executar o comando.
+            Mesmo mods/broadcaster armam o cooldown (apenas ignoram a checagem se bypass estiver ativo).
+            """
+            self._cd_init_maps()
+            now = self._cd_now()
+            cd_g, cd_u, _ = self._cd_get_cfg(cmd, cfg)
+
+            if cd_g > 0:
+                self._cd_global[cmd] = now + cd_g
+            if cd_u > 0:
+                u_map = self._cd_user.setdefault(cmd, {})
+                u_map[user.lower()] = now + cd_u

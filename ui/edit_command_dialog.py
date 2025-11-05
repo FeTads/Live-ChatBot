@@ -136,6 +136,43 @@ class EditCommandDialog(ctk.CTkToplevel):
             self.input_widgets.append(self.permission_menu)
             current_row += 2
 
+            ctk.CTkLabel(main_edit_frame, text="Cooldown global (s):", font=ctk.CTkFont(size=14, weight="bold")).grid(
+                row=current_row, column=0, sticky="w", padx=10, pady=(10, 0))
+            ctk.CTkLabel(main_edit_frame, text="Cooldown por usuário (s):", font=ctk.CTkFont(size=14, weight="bold")).grid(
+                row=current_row, column=1, sticky="w", padx=10, pady=(10, 0))
+            current_row += 1
+
+            self.cd_global_var = tk.StringVar(value=str(item_config.get("cooldown_global", 3)))
+            self.cd_user_var = tk.StringVar(value=str(item_config.get("cooldown_user", 10)))
+
+            self.cd_global_entry = ctk.CTkEntry(
+                main_edit_frame, textvariable=self.cd_global_var, width=120,
+                placeholder_text="3", fg_color=self.colors['surface_light'],
+                border_color=self.colors['twitch_purple']
+            )
+            self.cd_user_entry = ctk.CTkEntry(
+                main_edit_frame, textvariable=self.cd_user_var, width=140,
+                placeholder_text="10", fg_color=self.colors['surface_light'],
+                border_color=self.colors['twitch_purple']
+            )
+            self.cd_global_entry.grid(row=current_row, column=0, sticky="w", padx=10, pady=(5, 10))
+            self.cd_user_entry.grid(row=current_row, column=1, sticky="w", padx=10, pady=(5, 10))
+            self.input_widgets.extend([self.cd_global_entry, self.cd_user_entry])
+            current_row += 1
+
+            # bypass mods
+            self.cd_bypass_mods_var = tk.BooleanVar(value=bool(item_config.get("cooldown_bypass_mods", True)))
+            self.cd_bypass_switch = ctk.CTkSwitch(
+                main_edit_frame, text="Bypass mods/streamer",
+                variable=self.cd_bypass_mods_var,
+                fg_color=self.colors['surface_light'],
+                button_color=self.colors['twitch_purple'],
+                button_hover_color=self.colors['twitch_purple_dark']
+            )
+            self.cd_bypass_switch.grid(row=current_row, column=0, columnspan=2, sticky="w", padx=10, pady=(0, 10))
+            self.input_widgets.append(self.cd_bypass_switch)
+            current_row += 1
+
         self.json_toggle_button = ctk.CTkButton(
             self, text="🛠️ JSON AVANÇADO (Modo de Edição)",
             command=self._toggle_json_editor,
@@ -230,6 +267,18 @@ class EditCommandDialog(ctk.CTkToplevel):
                     new_config['response'] = self.response_text.get().strip() if self.response_text.get().strip() else None
                     new_config['permission'] = self.permission_var.get().lower() if self.permission_var.get().lower() else 'everyone'
             
+            try:
+                cdg = int(self.cd_global_var.get().strip() or "3")
+            except ValueError:
+                cdg = 3
+            try:
+                cdu = int(self.cd_user_var.get().strip() or "10")
+            except ValueError:
+                cdu = 10
+            new_config['cooldown_global'] = max(0, cdg)
+            new_config['cooldown_user']   = max(0, cdu)
+            new_config['cooldown_bypass_mods'] = bool(self.cd_bypass_mods_var.get())
+
             new_config = {k: v for k, v in new_config.items() if v is not None}
             
             if self.is_reward:

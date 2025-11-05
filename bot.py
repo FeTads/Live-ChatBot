@@ -201,10 +201,18 @@ class TwitchChatBot:
                 self.send_message(f"🚨 {user}, você não tem permissão para usar {cmd}.")
                 return
 
+            allowed, cd_left = self.gui.check_command_cooldown(cmd, user, command_config, permissions)
+            if not allowed:
+                #if permissions.get("is_mod") or permissions.get("is_broadcaster"):
+                    #self.send_message(f"⏳ {cmd} em cooldown ({cd_left}s).")
+                return
+
             response = self.generate_response(user, command_config, message)
             
             if response:
                 self.send_message(response)
+
+            self.gui.arm_command_cooldown(cmd, user, command_config, permissions)
     
     def generate_response(self, user, command_config, full_message):
         """

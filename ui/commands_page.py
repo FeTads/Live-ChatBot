@@ -1,6 +1,8 @@
 import tkinter as tk
 import customtkinter as ctk
 
+from ui.components.tooltip import attach_tooltip
+
 class CommandsPage(ctk.CTkFrame):
     def __init__(self, master, app):
         super().__init__(master, fg_color=app.colors['background'])
@@ -27,12 +29,13 @@ class CommandsPage(ctk.CTkFrame):
         add_cmd_frame.grid_columnconfigure(4, weight=0)
         add_cmd_frame.grid_columnconfigure(5, weight=0)
 
+
         ctk.CTkLabel(add_cmd_frame, text="Comando:", font=ctk.CTkFont(size=12)).grid(
             row=0, column=0, columnspan=2, sticky="sw", pady=(5, 0), padx=(0, 10))
         ctk.CTkLabel(add_cmd_frame, text="Resposta:", font=ctk.CTkFont(size=12)).grid(
             row=0, column=3, sticky="sw", pady=(5, 0), padx=(0, 10))
         ctk.CTkLabel(add_cmd_frame, text="Quem pode usar:", font=ctk.CTkFont(size=12)).grid(
-            row=0, column=4, sticky="sw", pady=(5, 0), padx=(0, 10))
+            row=0, column=4, sticky="sw", pady=(5, 0), padx=(25, 10))
 
         self.app.new_cmd_var = tk.StringVar(value="")
         self.app.new_cmd_entry = ctk.CTkEntry(
@@ -45,7 +48,7 @@ class CommandsPage(ctk.CTkFrame):
         self.app.new_cmd_entry.grid(row=1, column=0, columnspan=2, sticky="w", pady=(0, 5), padx=(0, 10))
 
         ctk.CTkLabel(add_cmd_frame, text="➡️", font=ctk.CTkFont(size=14)).grid(
-             row=1, column=2, pady=(0, 5), padx=5)
+             row=1, column=2, pady=(0, 5), padx=(0, 0))
         
         if self.app.new_cmd_var.get() == "":
             self.app.new_cmd_var.set("!comando")
@@ -82,7 +85,52 @@ class CommandsPage(ctk.CTkFrame):
             fg_color=self.app.colors['success'], hover_color='#00cc6a',
             font=ctk.CTkFont(size=12, weight="bold"), width=100, height=30
         )
-        self.app.add_cmd_button.grid(row=1, column=5, pady=(0, 5), padx=(5,0))
+        self.app.add_cmd_button.grid(row=1, column=8, pady=(0, 5), padx=(5,0))
+
+
+        ctk.CTkLabel(add_cmd_frame, text="Cooldown (usuário):", font=ctk.CTkFont(size=12)).grid(
+            row=2, column=0, sticky="sw", pady=(2, 0), padx=(0, 4))
+        ctk.CTkLabel(add_cmd_frame, text="Cooldown global:", font=ctk.CTkFont(size=12)).grid(
+            row=2, column=2, sticky="sw", pady=(2, 0), padx=(2, 4))
+        
+        self.app.new_cmd_cd_user_var = tk.StringVar(value="10")
+        self.app.new_cmd_cd_user_entry = ctk.CTkEntry(
+            add_cmd_frame, textvariable=self.app.new_cmd_cd_user_var,
+            placeholder_text="10",
+            fg_color=self.app.colors['surface_light'],
+            border_color=self.app.colors['twitch_purple'],
+            placeholder_text_color=self.app.colors['text_secondary']
+        )
+        self.app.new_cmd_cd_user_entry.grid(row=3, column=0, sticky="ew", pady=(2, 0), padx=(0, 28))
+
+        self.app.new_cmd_cd_global_var = tk.StringVar(value="3")
+        self.app.new_cmd_cd_global_entry = ctk.CTkEntry(
+            add_cmd_frame, textvariable=self.app.new_cmd_cd_global_var,
+            placeholder_text="3",
+            fg_color=self.app.colors['surface_light'],
+            border_color=self.app.colors['twitch_purple'],
+            placeholder_text_color=self.app.colors['text_secondary']
+        )
+        self.app.new_cmd_cd_global_entry.grid(row=3, column=2, sticky="ew", pady=(2, 0), padx=(0, 2))
+
+        self.app.new_cmd_bypass_mods_var = tk.BooleanVar(value=False)
+        self.app.new_cmd_bypass_mods_switch = ctk.CTkSwitch(
+            add_cmd_frame, text="Bypass mods/streamer",
+            variable=self.app.new_cmd_bypass_mods_var,
+            fg_color=self.app.colors['surface_light'],
+            button_color=self.app.colors['twitch_purple'],
+            button_hover_color=self.app.colors['twitch_purple_dark']
+        )
+        self.app.new_cmd_bypass_mods_switch.grid(row=4, column=0, sticky="w", pady=(10, 2), padx=(2, 3))
+        attach_tooltip(
+            self.app.new_cmd_bypass_mods_switch,
+            "Bypass",
+            "Quando ativado, Moderadores e o Streamer ignoram o cooldown.\n"
+            "Obs: o cooldown ainda é setado, para o resto do chat.",
+            colors=self.app.colors,
+            delay=350,
+            wraplength=320
+        )
 
         list_frame = ctk.CTkFrame(commands_frame, fg_color=self.app.colors['surface'])
         list_frame.pack(fill=tk.BOTH, expand=True, padx=15, pady=(0, 10))
