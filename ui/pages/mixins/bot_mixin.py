@@ -1,0 +1,2 @@
+class BotMixin:
+        pass
