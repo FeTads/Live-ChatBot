@@ -25,7 +25,8 @@ class ProfilesMixin:
         files = [getattr(self, "settings_file", "settings.json"),
                  getattr(self, "commands_file", "commands.json"),
                  getattr(self, "timers_file", "timers.json"),
-                 getattr(self, "activity_file", "activity_log.json")]
+                 getattr(self, "activity_file", "activity_log.json"),
+                 getattr(self, "points_store_file", "points.json"),]
         rewards_file = getattr(self, "rewards_file", None)
         if rewards_file:
             files.append(rewards_file)
@@ -78,4 +79,4 @@ class ProfilesMixin:
             python = sys.executable
             os.execl(python, python, *sys.argv)
         except Exception as e:
-            self.log_message(f"❌ Erro ao reiniciar o app: {e}", "error")
+            ToastNotification(self.root, "Erro ao reiniciar. \npor favor, reabra o bot!", colors=self.colors, toast_type="error")

@@ -15,12 +15,13 @@ from ui.navigation_frame import NavigationFrame
 from ui.reward_page import RewardsPage
 from ui.timers_page import TimersPage
 from ui.tts_page import TTSPage
+from ui.points_page import PointsPage
 
 class ModernTwitchBaseView(ctk.CTk):
         def __init__(self, root=None, *args, **kwargs):
             super().__init__(*args, **kwargs)
             self.root = root or self
-            self.root.title("Twitch Chat Bot v1.0.0")
+            self.root.title("Twitch Chat Bot v1.0.1")
             self.root.geometry("1100x750")
             self.root.minsize(900, 600)
 
@@ -115,9 +116,10 @@ class ModernTwitchBaseView(ctk.CTk):
             self.rewards_page = RewardsPage(self.content_frame, app=self)
             self.activity_page = ActivityPage(self.content_frame, app=self)
             self.tts_page = TTSPage(self.content_frame, app=self)
+            self.points_page = PointsPage(self.content_frame, app=self)
 
             for page in (self.connection_page, self.commands_page, self.timers_page, self.messages_page,
-                         self.chat_page, self.rewards_page, self.activity_page, self.tts_page):
+                         self.chat_page, self.rewards_page, self.activity_page, self.tts_page, self.points_page):
                 page.grid(row=0, column=0, sticky="nsew")
 
             self.select_frame_by_name("connect")

@@ -4,6 +4,8 @@ import random
 import re
 from datetime import datetime
 import requests
+from services.twitch_api import TwitchAPIService
+from services.points_service import PointsService
 
 class TwitchChatBot:
     def __init__(self, gui, config):
@@ -19,6 +21,13 @@ class TwitchChatBot:
         self.chatters = []
 
         self.chat_lines_this_tick = 0
+
+        self.twitch_api = TwitchAPIService(self.config, self.gui.log_message)
+        self.points = PointsService(
+            storage_path=self.gui.settings.get('points_store_file', 'points.json'),
+            logger=self.gui.log_message
+        )
+        self._points_last_msg_time = {}
         
     def connect(self):
         """Conectar ao servidor Twitch"""
@@ -62,69 +71,115 @@ class TwitchChatBot:
     
     def parse_message(self, line):
         """Parsear mensagem do IRC e extrair tags de permissão."""
-        if "PRIVMSG" in line:
-            try:
-                tags_match = re.search(r'^@([^ ]+) :', line)
-                user_match = re.search(r':(\w+)!', line)
-                message_match = re.search(r'PRIVMSG #\w+ :(.+)', line)
+        if "PRIVMSG" not in line:
+            return
+
+        try:
+            tags_match = re.search(r'^@([^ ]+) :', line)
+            user_match = re.search(r':(\w+)!', line)
+            message_match = re.search(r'PRIVMSG #\w+ :(.+)', line)
+            
+            if not (user_match and message_match):
+                return
+
+            user = user_match.group(1)
+            message = message_match.group(1).strip()
+
+            permissions = {'is_mod': False, 'is_broadcaster': False, 'is_vip': False}
+            is_cheer = False
+            bits_amount = 0
+            
+            if tags_match:
+                tags_raw = tags_match.group(1)
+                tags = {tag.split('=')[0]: tag.split('=')[1] for tag in tags_raw.split(';') if '=' in tag}
+
+                if user.lower() == self.config['channel'].lower() or ('badges' in tags and 'broadcaster/1' in tags['badges']):
+                    permissions['is_broadcaster'] = True
+                    permissions['is_mod'] = True
                 
-                if user_match and message_match:
-                    user = user_match.group(1)
-                    message = message_match.group(1).strip()
+                if tags.get('mod') == '1':
+                    permissions['is_mod'] = True
+                
+                if 'badges' in tags and 'vip/1' in tags['badges']:
+                    permissions['is_vip'] = True
+                
+                if 'bits' in tags and tags['bits'].isdigit() and int(tags['bits']) > 0:
+                    is_cheer = True
+                    bits_amount = int(tags['bits'])
+            
+            if user.lower() != self.config['bot_user_name'].lower():
+                self.chat_lines_this_tick += 1
 
-                    permissions = {'is_mod': False, 'is_broadcaster': False, 'is_vip': False}
-                    is_cheer = False
-                    bits_amount = 0
-                    
-                    if tags_match:
-                        tags_raw = tags_match.group(1)
-                        tags = {tag.split('=')[0]: tag.split('=')[1] for tag in tags_raw.split(';') if '=' in tag}
+            self.gui.log_message(f"{user}: {message}", "chat")
+            try:
+                ps = self.gui.settings or {}
+                if ps.get("points_enabled", False) and ps.get("points_accrual_enabled", True):
+                    if user.lower() != self.config['bot_user_name'].lower():
+                        now = time.time()
+                        cd = int(ps.get("points_accrual_cooldown_s", 60) or 0)
+                        last = self._points_last_msg_time.get(user.lower(), 0)
 
-                        if user.lower() == self.config['channel'].lower() or ('badges' in tags and 'broadcaster/1' in tags['badges']):
-                            permissions['is_broadcaster'] = True
-                            permissions['is_mod'] = True
-                        
-                        if tags.get('mod') == '1':
-                            permissions['is_mod'] = True
-                        
-                        if 'badges' in tags and 'vip/1' in tags['badges']:
-                            permissions['is_vip'] = True
-                        
-                        if 'bits' in tags and int(tags['bits']) > 0:
-                            is_cheer = True
-                            bits_amount = int(tags['bits'])
-                    
-                    if user.lower() != self.config['bot_user_name'].lower(): 
-                        self.chat_lines_this_tick += 1
-
-                    self.gui.log_message(f"{user}: {message}", "chat")
-                    
-
-                    if is_cheer:
-                        self._process_cheer_event(user, message, bits_amount)
-
-                    found_command = None
-                    full_message_parts = message.split() 
-                    for index, part in enumerate(full_message_parts):
-                        if part.startswith('!'):
-                            command_root = part.lower()
-                            
-                            if permissions['is_mod'] and command_root in ["!cmdd", "!setcount", "!addcount"]:
-                                found_command = command_root
-                                break
-                            
-                            if command_root in self.config['commands']:
-                                found_command = command_root
-                                break
-                                
-                    if found_command:
-                        start_index = message.lower().find(found_command)
-                        if start_index != -1:
-                           full_command_message = message[start_index:].strip()
-                           self.process_command(user, full_command_message, permissions) 
-                        
+                        bypass = ps.get("points_bypass_mods", True) and (permissions.get('is_mod') or permissions.get('is_broadcaster'))
+                        if bypass or now - last >= cd:
+                            amount = int(ps.get("points_accrual_per_msg", 1) or 0)
+                            if amount > 0:
+                                self.points.add(user, amount)
+                            self._points_last_msg_time[user.lower()] = now
             except Exception as e:
-                self.gui.log_message(f"Erro ao parsear: {e}", "error")
+                self.gui.log_message(f"⚠️ points acumulados: {e}", "warning")
+            
+            if is_cheer:
+                self._process_cheer_event(user, message, bits_amount)
+
+            ps = self.gui.settings or {}
+            points_on = ps.get("points_enabled", False)
+
+            def _cmd_maybe(name_key, enabled_key, default_cmd, default_enabled=True):
+                c = (ps.get(name_key, default_cmd) or default_cmd).strip().lower()
+                en = bool(ps.get(enabled_key, default_enabled))
+                if not c:
+                    en = False
+                return c if (points_on and en) else None
+
+            cmd_balance = _cmd_maybe("points_cmd_balance", "points_cmd_balance_enabled", "!pontos", True)
+            cmd_give    = _cmd_maybe("points_cmd_give",    "points_cmd_give_enabled",    "!give",   True)
+            cmd_add     = _cmd_maybe("points_cmd_add",     "points_cmd_add_enabled",     "!addpoints", True)
+            cmd_set     = _cmd_maybe("points_cmd_set",     "points_cmd_set_enabled",     "!setpoints", True)
+
+            points_cmds = {c for c in [cmd_balance, cmd_give, cmd_add, cmd_set] if c}
+
+            mod_only_cmds = set()
+            if permissions['is_mod']:
+                mod_only_cmds.update(["!cmdd", "!setcount", "!addcount"])
+
+            config_cmds = set(self.config.get('commands', {}).keys())
+
+            candidate_cmds = points_cmds.union(config_cmds).union(mod_only_cmds)
+
+            found_command = None
+            start_index = -1
+
+            for part in message.split():
+                if not part.startswith('!'):
+                    continue
+
+                m = re.match(r'^![a-z0-9_]+', part.lower())
+                if not m:
+                    continue
+                root = m.group(0)
+
+                if root in candidate_cmds:
+                    found_command = root
+                    start_index = message.lower().find(root)
+                    break
+
+            if found_command and start_index != -1:
+                full_command_message = message[start_index:].strip()
+                self.process_command(user, full_command_message, permissions)
+
+        except Exception as e:
+            self.gui.log_message(f"Erro ao parsear: {e}", "error")
+
     
     def process_command(self, user, message, permissions):
         """Processar comandos do chat"""
@@ -138,6 +193,85 @@ class TwitchChatBot:
 
         perm_map = {"everyone": 0, "vip": 1, "mod": 2, "broadcaster": 3}
 
+        ps = self.gui.settings or {}
+
+        points_on = ps.get("points_enabled", False)
+        def _cmd_active(name_key, enabled_key, default_cmd, default_enabled=True):
+            c = (ps.get(name_key, default_cmd) or default_cmd).strip().lower()
+            en = bool(ps.get(enabled_key, default_enabled))
+            if not c:
+                en = False
+            return c, en
+
+        #print(f"{cmd}")
+
+        cmd_balance, cmd_balance_enabled = _cmd_active("points_cmd_balance", "points_cmd_balance_enabled", "!pontos", True)
+        cmd_give,    cmd_give_enabled    = _cmd_active("points_cmd_give",    "points_cmd_give_enabled",    "!give",   True)
+        cmd_add,     cmd_add_enabled     = _cmd_active("points_cmd_add",     "points_cmd_add_enabled",     "!addpoints", True)
+        cmd_set,     cmd_set_enabled     = _cmd_active("points_cmd_set",     "points_cmd_set_enabled",     "!setpoints", True)
+
+        min_transfer = int(ps.get("points_min_transfer", 1) or 1)
+        pm = ps.get("points_messages", {}) or {}
+
+        if points_on and cmd_balance_enabled and cmd == cmd_balance:
+            target = user
+            if len(cmd_parts) >= 2:
+                target = cmd_parts[1].lstrip("@")
+            bal = self.points.get(target)
+            msg = (pm.get("balance", "💰 {user} tem {balance} pontos.")
+                    .format(user=target, balance=bal))
+            self.send_message(msg)
+            return
+
+        if points_on and cmd_give_enabled and cmd == cmd_give:
+            if len(cmd_parts) < 3:
+                self.send_message((pm.get("usage_give", "Uso: {cmd_give} @alvo <quantidade>")).format(cmd_give=cmd_give))
+                return
+            to_user = cmd_parts[1].lstrip("@")
+            try:
+                amount = int(cmd_parts[2])
+            except Exception:
+                self.send_message(pm.get("transfer_invalid", "Quantidade inválida."))
+                return
+            if amount < min_transfer:
+                self.send_message(pm.get("transfer_invalid", "Quantidade inválida."))
+                return
+            ok = self.points.transfer(user, to_user, amount)
+            if ok:
+                self.send_message((pm.get("transfer_ok", "✅ @{from} transferiu {amount} pontos para @{to}."))
+                                .format(**{"from": user, "to": to_user, "amount": amount}))
+            else:
+                self.send_message((pm.get("transfer_fail", "❌ Saldo insuficiente para @{from}."))
+                                .format(**{"from": user}))
+            return
+
+        if points_on and (cmd_add_enabled or cmd_set_enabled) and cmd in (cmd_add, cmd_set):
+            if (cmd == cmd_add and not cmd_add_enabled) or (cmd == cmd_set and not cmd_set_enabled):
+                return
+
+            if user_level < perm_map["mod"]:
+                self.send_message(f"🚨 {user}, você não tem permissão para usar {cmd}.")
+                return
+            if len(cmd_parts) < 3:
+                self.send_message((pm.get("usage_admin", "Uso: {cmd} @user <quantidade>")).format(cmd=cmd))
+                return
+            target = cmd_parts[1].lstrip("@")
+            try:
+                amount = int(cmd_parts[2])
+            except Exception:
+                self.send_message((pm.get("usage_admin", "Uso: {cmd} @user <quantidade>")).format(cmd=cmd))
+                return
+
+            if cmd == cmd_add:
+                bal = self.points.add(target, amount)
+                self.send_message((pm.get("add_ok", "➕ {target} agora tem {balance} pontos."))
+                                .format(target=target, balance=bal))
+            else:
+                bal = self.points.set(target, amount)
+                self.send_message((pm.get("set_ok", "📝 {target} teve o saldo definido para {balance}."))
+                                .format(target=target, balance=bal))
+            return
+        
         if cmd == "!setcount" or cmd == "!addcount":
 
             if user_level < perm_map["mod"]:
@@ -191,7 +325,7 @@ class TwitchChatBot:
             command_config = self.config['commands'][cmd]
 
             if command_config.get('disabled', False):
-                #self.gui.log_message(f"Comando '{cmd}' desabilitado.", "info")
+                # self.gui.log_message(f"Comando '{cmd}' desabilitado.", "info")
                 return
             
             required_perm_str = command_config.get('permission', 'everyone').lower()
@@ -203,16 +337,16 @@ class TwitchChatBot:
 
             allowed, cd_left = self.gui.check_command_cooldown(cmd, user, command_config, permissions)
             if not allowed:
-                #if permissions.get("is_mod") or permissions.get("is_broadcaster"):
-                    #self.send_message(f"⏳ {cmd} em cooldown ({cd_left}s).")
+                # if permissions.get("is_mod") or permissions.get("is_broadcaster"):
+                #     self.send_message(f"⏳ {cmd} em cooldown ({cd_left}s).")
                 return
 
             response = self.generate_response(user, command_config, message)
-            
             if response:
                 self.send_message(response)
 
             self.gui.arm_command_cooldown(cmd, user, command_config, permissions)
+
     
     def generate_response(self, user, command_config, full_message):
         """
@@ -225,6 +359,10 @@ class TwitchChatBot:
         format_vars = {'user': user}
         format_vars['channel'] = self.config['channel']
         response_output = response_template
+
+        if '{uptime}' in response_output:
+            response_output = response_output.replace('{uptime}', self._format_uptime())
+        
         should_save_settings = False
         counts_dict = self.config['settings'].get('counts', {}).copy()
 
@@ -355,6 +493,25 @@ class TwitchChatBot:
             self.gui.log_message(f"❌ Erro de formatação no comando: {e}", "error")
             return f"❌ Erro grave no comando! (Erro: {e})"
     
+
+    def _format_uptime(self) -> str:
+        try:
+            login = self.config.get('channel', '') or self.config.get('channel_login', '')
+            secs = self.twitch_api.get_uptime_seconds(channel_login=login, user_id=str(self.config.get('target_channel_id', '') or ''))
+            if secs <= 0:
+                return "offline"
+            m, s = divmod(secs, 60)
+            h, m = divmod(m, 60)
+            if h:
+                return f"{h}h {m}m {s}s"
+            elif m:
+                return f"{m}m {s}s"
+            else:
+                return f"{s}s"
+        except Exception as e:
+            self.gui.log_message(f"Erro uptime: {e}", "error")
+            return "offline"
+
     def run(self):
         """Loop principal do bot"""
         self.connect()

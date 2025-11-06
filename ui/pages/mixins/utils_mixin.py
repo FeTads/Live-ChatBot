@@ -19,7 +19,8 @@ class UtilsMixin:
                 "chat": self.chat_page,
                 "rewards": self.rewards_page,
                 "activity": self.activity_page,
-                "tts": self.tts_page
+                "tts": self.tts_page,
+                "pontos": self.points_page
             }
             page_to_raise = page_map.get(name)
             if page_to_raise:

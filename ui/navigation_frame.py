@@ -7,7 +7,7 @@ class NavigationFrame(ctk.CTkFrame):
         self.controller = controller
         self.colors = controller.colors
 
-        self.grid_rowconfigure(9, weight=1)
+        self.grid_rowconfigure(20, weight=1)
 
         title_label = ctk.CTkLabel(
             self, text="🎮 CHAT BOT",
@@ -72,11 +72,19 @@ class NavigationFrame(ctk.CTkFrame):
         )
         self.nav_btn_tts.grid(row=8, column=0, sticky="ew", padx=15, pady=5)
 
+        self.nav_btn_points = ctk.CTkButton(
+            self, text="Pontos",
+            command=lambda: self.controller.select_frame_by_name("pontos"),
+            font=ctk.CTkFont(size=14, weight="bold"), height=40, corner_radius=8,
+            fg_color=self.colors['surface_dark'], hover_color=self.colors['surface_light']
+        )
+        self.nav_btn_points.grid(row=9, column=0, sticky="ew", padx=15, pady=5)
+
         self.status_label = ctk.CTkLabel(
             self, text="● OFFLINE", text_color=self.colors['error'],
             font=ctk.CTkFont(size=14, weight="bold")
         )
-        self.status_label.grid(row=10, column=0, padx=20, pady=20, sticky="s")
+        self.status_label.grid(row=21, column=0, padx=20, pady=20, sticky="s")
 
     def update_button_colors(self, selected_name):
         """Atualiza a cor de fundo dos botões de navegação."""
@@ -88,7 +96,8 @@ class NavigationFrame(ctk.CTkFrame):
             "chat": self.nav_btn_chat,
             "rewards": self.nav_btn_rewards,
             "activity": self.nav_btn_activity,
-            "tts": self.nav_btn_tts
+            "tts": self.nav_btn_tts,
+            "pontos": self.nav_btn_points,
         }
         for name, button in buttons.items():
             if name == selected_name:
