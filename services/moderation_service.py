@@ -91,32 +91,36 @@ class ModerationService:
         action = (cfg.get("action") or "both").lower()
         timeout_secs = int(cfg.get("timeout_seconds", 10))
 
+        api = getattr(self, "api", None)
+        broadcaster_id = str(self.config["target_channel_id"])
+        moderator_id   = str(self.config["bot_user_id"])
+
         deleted = False
         if action in ("delete", "both") and message_id:
             try:
-                api = getattr(self, "api", None)
-                if api:
-                    ok = api.delete_chat_message(
-                        broadcaster_id=str(self.config["target_channel_id"]),
-                        moderator_id=str(self.config["bot_user_id"]),
+                if api and hasattr(api, "delete_chat_message"):
+                    deleted = bool(api.delete_chat_message(
+                        broadcaster_id=broadcaster_id,
+                        moderator_id=moderator_id,
                         message_id=message_id
-                    )
-                    deleted = bool(ok)
+                    ))
             except Exception as e:
                 self.log(f"❌ Falha no delete via API: {e}", "error")
 
         if not deleted and action in ("delete", "both"):
-            try:
-                self.send_raw(f"PRIVMSG #{self.config['channel']} :/timeout {username} 1 {reason}")
+            ok = False
+            if api and hasattr(api, "timeout_user"):
+                ok = api.timeout_user(broadcaster_id, moderator_id, username, 1, reason)
                 deleted = True
-            except Exception as e:
-                self.log(f"❌ Falha no fallback timeout(1): {e}", "error")
-
+            if not ok:
+                self.log(f"Falha no delete para {username}", "error")
+            
         if action in ("timeout", "both") and timeout_secs > 1:
-            try:
-                self.send_raw(f"PRIVMSG #{self.config['channel']} :/timeout {username} {timeout_secs} {reason}")
-            except Exception as e:
-                self.log(f"❌ Falha ao /timeout: {e}", "error")
+            ok = False
+            if api and hasattr(api, "timeout_user"):
+                ok = api.timeout_user(broadcaster_id, moderator_id, username, timeout_secs, reason)
+            if not ok:
+                self.log(f"Falha no timeout para {username}", "error")
 
         if cfg.get("punish_message_enabled", True):
             msg_tpl = (cfg.get("punish_message") or "").strip()
@@ -127,3 +131,4 @@ class ModerationService:
                     )
                 except Exception:
                     pass
+
