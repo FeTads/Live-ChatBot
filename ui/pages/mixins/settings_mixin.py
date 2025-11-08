@@ -2,6 +2,8 @@ import json
 import os
 
 import pygame
+import tkinter as tk
+
 
 from ui.toast_notification import ToastNotification
 
@@ -124,6 +126,51 @@ class SettingsMixin:
 
                 self.settings['tts_volume'] = self.tts_page.tts_volume_var.get()
 
+            mod = self.settings.setdefault('moderation', {})
+            if hasattr(self, 'moderation_page'):
+                mp = self.moderation_page
+                try:
+                    mod['enabled'] = bool(mp.mod_enabled.get())
+                    mod['anti_link_spam'] = bool(mp.anti_link.get())
+                    mod['blacklist_enabled'] = bool(mp.blacklist_enabled.get())
+
+                    if hasattr(mp, 'blacklist_text'):
+                        try:
+                            words = [w.strip() for w in mp.blacklist_text.get('1.0', tk.END).splitlines() if w.strip()]
+                        except Exception as e:
+                            self.log_message(f"⚠️ Erro ao ler blacklist_text: {e}", "error")
+                            words = mod.get('blacklist_words', [])
+                    else:
+                        words = mod.get('blacklist_words', [])
+                    mod['blacklist_words'] = words
+
+
+                    permit = mod.setdefault('permit', {})
+                    permit['command_name'] = (mp.permit_name.get().strip() or '!permit')
+                    try:
+                        permit['duration_seconds'] = int(mp.permit_secs.get().strip() or '60')
+                    except ValueError:
+                        permit['duration_seconds'] = 60
+                    permit['message_enabled'] = bool(mp.permit_msg_enabled.get())
+                    permit['message_template'] = (mp.permit_msg_template.get().strip() or '@{target} pode postar 1 link por {seconds}s.')
+
+                    try:
+                        mod['timeout_seconds'] = int(mp.timeout_secs.get().strip() or '10')
+                    except ValueError:
+                        mod['timeout_seconds'] = 10
+
+                    if hasattr(mp, 'punish_msg_enabled'):
+                        mod['punish_message_enabled'] = bool(mp.punish_msg_enabled.get())
+
+                    if hasattr(mp, 'punish_msg'):
+                        new_msg = mp.punish_msg.get().strip()
+                        old_msg = mod.get('punish_message', '')
+                        if new_msg or not old_msg:
+                            mod['punish_message'] = new_msg
+
+                except Exception as e:
+                    self.log_message(f"⚠️ Erro ao coletar UI de moderação: {e}", "error")
+
             self.settings['reward_actions'] = self.reward_actions
 
             if 'counts' not in self.settings:
@@ -141,6 +188,8 @@ class SettingsMixin:
                     if self.eventsub or self.bot:
                         if self.eventsub: self.eventsub.config['settings'] = self.settings
                         if self.bot: self.bot.config['settings'] = self.settings
+                        if hasattr(self.bot, 'moderation'):
+                            self.bot.moderation.config = self.bot.config
 
             except Exception as e:
                 log_func = getattr(self, 'log_message', print)

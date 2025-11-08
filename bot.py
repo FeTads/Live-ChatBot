@@ -6,6 +6,8 @@ from datetime import datetime
 import requests
 from services.twitch_api import TwitchAPIService
 from services.points_service import PointsService
+from services.moderation_service import ModerationService
+from services.variable_resolver import VariableResolver
 
 class TwitchChatBot:
     def __init__(self, gui, config):
@@ -13,6 +15,9 @@ class TwitchChatBot:
         self.config = config
         self.connected = False
         self.sock = None
+        self.moderation = ModerationService(self.config, self.gui.log_message, self.send_raw, self.send_message)
+        
+        self.vars = VariableResolver(self.config, points_service=PointsService(self.config.get('settings',{}).get('points_store_file','points.json'), self.gui.log_message), twitch_api=TwitchAPIService(self.config, self.gui.log_message))
         
         self.server = "irc.chat.twitch.tv"
         self.port = 6667
@@ -27,6 +32,7 @@ class TwitchChatBot:
             storage_path=self.gui.settings.get('points_store_file', 'points.json'),
             logger=self.gui.log_message
         )
+        self.moderation.api = self.api = self.twitch_api
         self._points_last_msg_time = {}
         
     def connect(self):
@@ -79,6 +85,17 @@ class TwitchChatBot:
             user_match = re.search(r':(\w+)!', line)
             message_match = re.search(r'PRIVMSG #\w+ :(.+)', line)
             
+            tags = {}
+            msg_id = None
+            if tags_match:
+                raw = tags_match.group(1)
+                pairs = [p for p in raw.split(';') if '=' in p]
+                tags = {k: v for k, v in (p.split('=', 1) for p in pairs)}
+                msg_id = tags.get('id')  # usado no /delete
+
+            if not (user_match and message_match):
+                return
+            
             if not (user_match and message_match):
                 return
 
@@ -86,6 +103,7 @@ class TwitchChatBot:
             message = message_match.group(1).strip()
 
             permissions = {'is_mod': False, 'is_broadcaster': False, 'is_vip': False}
+
             is_cheer = False
             bits_amount = 0
             
@@ -106,6 +124,15 @@ class TwitchChatBot:
                 if 'bits' in tags and tags['bits'].isdigit() and int(tags['bits']) > 0:
                     is_cheer = True
                     bits_amount = int(tags['bits'])
+
+                if not self.moderation.guard_message(
+                    user,
+                    message,
+                    is_mod=permissions.get('is_mod', False),
+                    is_broadcaster=permissions.get('is_broadcaster', False),
+                    message_id=msg_id
+                ):
+                    return
             
             if user.lower() != self.config['bot_user_name'].lower():
                 self.chat_lines_this_tick += 1
@@ -154,7 +181,15 @@ class TwitchChatBot:
 
             config_cmds = set(self.config.get('commands', {}).keys())
 
+            permit_cmd = (
+                ps.get("moderation", {})
+                .get("permit", {})
+                .get("command_name", "!permit")
+            )
+            permit_cmd = (permit_cmd or "!permit").strip().lower()
+
             candidate_cmds = points_cmds.union(config_cmds).union(mod_only_cmds)
+            candidate_cmds.add(permit_cmd)
 
             found_command = None
             start_index = -1
@@ -272,6 +307,28 @@ class TwitchChatBot:
                                 .format(target=target, balance=bal))
             return
         
+        if cmd == self.config.get('settings', {}).get('moderation', {}).get('permit', {}).get('command_name', '!permit'):
+            if user_level < perm_map['mod']:
+                return
+
+            target = cmd_parts[1].lstrip('@') if len(cmd_parts) > 1 else ''
+            if not target:
+                self.send_message('uso: {cmd} @user'.format(
+                    cmd=self.config.get('settings', {}).get('moderation', {}).get('permit', {}).get('command_name', '!permit')
+                ))
+                return
+
+            secs = int(self.config.get('settings', {}).get('moderation', {}).get('permit', {}).get('duration_seconds', 60))
+            self.moderation.grant_permit(target, secs)
+
+            if self.config.get('settings', {}).get('moderation', {}).get('permit', {}).get('message_enabled', True):
+                tpl = self.config.get('settings', {}).get('moderation', {}).get('permit', {}).get(
+                    'message_template', '@{target} pode postar 1 link por {seconds}s.'
+                )
+                self.send_message(tpl.replace('{target}', target).replace('{seconds}', str(secs)))
+            return
+
+
         if cmd == "!setcount" or cmd == "!addcount":
 
             if user_level < perm_map["mod"]:

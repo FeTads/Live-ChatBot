@@ -1,5 +1,6 @@
 
 import os
+import subprocess
 import sys
 import zipfile
 from datetime import datetime
@@ -76,7 +77,7 @@ class ProfilesMixin:
     def restart_app(self):
         """Reinicia completamente o aplicativo."""
         try:
-            python = sys.executable
-            os.execl(python, python, *sys.argv)
+            subprocess.Popen([sys.executable] + sys.argv)
+            os._exit(0)
         except Exception as e:
             ToastNotification(self.root, "Erro ao reiniciar. \npor favor, reabra o bot!", colors=self.colors, toast_type="error")

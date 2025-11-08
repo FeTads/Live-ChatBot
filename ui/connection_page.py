@@ -6,6 +6,8 @@ import os
 import textwrap
 import sys
 
+from ui.components.tooltip import attach_tooltip
+
 def resource_path(relative_path):
     """ Retorna o caminho absoluto para o recurso, funcionando em dev e no PyInstaller """
     try:
@@ -66,6 +68,11 @@ class ConnectionPage(ctk.CTkFrame):
             border_color=self.app.colors['twitch_purple'], text_color=self.app.colors['text_primary']
         )
         self.app.channel_entry.grid(row=0, column=1, columnspan=2, sticky="ew", pady=5)
+        attach_tooltip(
+            self.app.channel_entry, "Nome do canal bot",
+            "Aqui você deve inserir o nome do canal Twitch onde o bot irá operar.\n",
+            colors=self.app.colors, delay=350, wraplength=360
+        )
 
         ctk.CTkLabel(input_frame, text="🔑 Token:", font=ctk.CTkFont(size=12)).grid(
             row=1, column=0, sticky=tk.W, pady=5, padx=(0, 10))
@@ -76,6 +83,12 @@ class ConnectionPage(ctk.CTkFrame):
             border_color=self.app.colors['twitch_purple'], text_color=self.app.colors['text_primary']
         )
         self.app.token_entry.grid(row=1, column=1, sticky="ew", pady=5)
+        attach_tooltip(
+            self.app.token_entry, "Token",
+            "O token OAuth é necessário para autenticar o bot na Twitch.\n"
+            "ESSE TOKEN É SECRETO! NÃO COMPARTILHE COM NINGUÉM.",
+            colors=self.app.colors, delay=350, wraplength=360
+        )
 
         token_button = ctk.CTkButton(
             input_frame, text="Gerar Token 🔑", text_color=self.app.colors['background'],

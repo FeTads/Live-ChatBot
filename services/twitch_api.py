@@ -1,4 +1,3 @@
-
 import requests
 from datetime import datetime, timezone
 
@@ -59,3 +58,25 @@ class TwitchAPIService:
         except Exception as e:
             self.log(f"❌ TwitchAPI uptime erro: {e}", "error")
             return 0
+        
+    def delete_chat_message(self, broadcaster_id: str, moderator_id: str, message_id: str) -> bool:
+        """
+        Requer escopo: moderator:manage:chat_messages
+        DELETE https://api.twitch.tv/helix/moderation/chat?broadcaster_id=...&moderator_id=...&message_id=...
+        """
+        try:
+            url = "https://api.twitch.tv/helix/moderation/chat"
+            params = {
+                "broadcaster_id": broadcaster_id,
+                "moderator_id": moderator_id,
+                "message_id": message_id,
+            }
+            r = requests.delete(url, headers=self._headers(), params=params, timeout=6)
+            if r.status_code == 204:
+                return True
+            else:
+                return False
+        except Exception as e:
+            self.log(f"Helix delete_chat_message erro: {e}", "error")
+            return False
+

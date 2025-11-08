@@ -13,6 +13,7 @@ from ui.custom_dialog import CustomDialog
 from ui.messages_page import MessagesPage
 from ui.navigation_frame import NavigationFrame
 from ui.reward_page import RewardsPage
+from ui.moderation_page import ModerationPage
 from ui.timers_page import TimersPage
 from ui.tts_page import TTSPage
 from ui.points_page import PointsPage
@@ -114,12 +115,14 @@ class ModernTwitchBaseView(ctk.CTk):
             self.messages_page = MessagesPage(self.content_frame, app=self)
             self.chat_page = ChatPage(self.content_frame, app=self)
             self.rewards_page = RewardsPage(self.content_frame, app=self)
+            self.moderation_page = ModerationPage(self.content_frame, app=self)
             self.activity_page = ActivityPage(self.content_frame, app=self)
             self.tts_page = TTSPage(self.content_frame, app=self)
             self.points_page = PointsPage(self.content_frame, app=self)
+            self.moderation_page = ModerationPage(self.content_frame, app=self)
 
             for page in (self.connection_page, self.commands_page, self.timers_page, self.messages_page,
-                         self.chat_page, self.rewards_page, self.activity_page, self.tts_page, self.points_page):
+                         self.chat_page, self.rewards_page, self.activity_page, self.tts_page, self.points_page, self.moderation_page):
                 page.grid(row=0, column=0, sticky="nsew")
 
             self.select_frame_by_name("connect")

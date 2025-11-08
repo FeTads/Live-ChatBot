@@ -57,12 +57,19 @@ class NavigationFrame(ctk.CTkFrame):
         )
         self.nav_btn_rewards.grid(row=6, column=0, sticky="ew", padx=15, pady=5)
 
+        self.nav_btn_moderation = ctk.CTkButton(
+            self, text="Moderação", command=lambda: self.controller.select_frame_by_name("moderação"),
+            font=ctk.CTkFont(size=14, weight="bold"), height=40, corner_radius=8,
+            fg_color=self.colors['surface_dark'], hover_color=self.colors['surface_light']
+        )
+        self.nav_btn_moderation.grid(row=7, column=0, sticky="ew", padx=15, pady=5)
+
         self.nav_btn_activity = ctk.CTkButton(
             self, text="Atividade", command=lambda: self.controller.select_frame_by_name("activity"),
             font=ctk.CTkFont(size=14, weight="bold"), height=40, corner_radius=8,
             fg_color=self.colors['surface_dark'], hover_color=self.colors['surface_light']
         )
-        self.nav_btn_activity.grid(row=7, column=0, sticky="ew", padx=15, pady=5)
+        self.nav_btn_activity.grid(row=8, column=0, sticky="ew", padx=15, pady=5)
 
         self.nav_btn_tts = ctk.CTkButton(
             self, text="TTS (text-to-speech)",
@@ -70,7 +77,7 @@ class NavigationFrame(ctk.CTkFrame):
             font=ctk.CTkFont(size=14, weight="bold"), height=40, corner_radius=8,
             fg_color=self.colors['surface_dark'], hover_color=self.colors['surface_light']
         )
-        self.nav_btn_tts.grid(row=8, column=0, sticky="ew", padx=15, pady=5)
+        self.nav_btn_tts.grid(row=9, column=0, sticky="ew", padx=15, pady=5)
 
         self.nav_btn_points = ctk.CTkButton(
             self, text="Pontos",
@@ -78,7 +85,7 @@ class NavigationFrame(ctk.CTkFrame):
             font=ctk.CTkFont(size=14, weight="bold"), height=40, corner_radius=8,
             fg_color=self.colors['surface_dark'], hover_color=self.colors['surface_light']
         )
-        self.nav_btn_points.grid(row=9, column=0, sticky="ew", padx=15, pady=5)
+        self.nav_btn_points.grid(row=10, column=0, sticky="ew", padx=15, pady=5)
 
         self.status_label = ctk.CTkLabel(
             self, text="● OFFLINE", text_color=self.colors['error'],
@@ -95,6 +102,7 @@ class NavigationFrame(ctk.CTkFrame):
             "messages": self.nav_btn_messages,
             "chat": self.nav_btn_chat,
             "rewards": self.nav_btn_rewards,
+            "moderação": self.nav_btn_moderation,
             "activity": self.nav_btn_activity,
             "tts": self.nav_btn_tts,
             "pontos": self.nav_btn_points,

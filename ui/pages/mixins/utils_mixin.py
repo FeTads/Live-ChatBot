@@ -18,6 +18,7 @@ class UtilsMixin:
                 "messages": self.messages_page,
                 "chat": self.chat_page,
                 "rewards": self.rewards_page,
+                "moderação": self.moderation_page,
                 "activity": self.activity_page,
                 "tts": self.tts_page,
                 "pontos": self.points_page
