@@ -4,11 +4,10 @@ import customtkinter as ctk
 from ui.components.tooltip import attach_tooltip
 from ui.toast_notification import ToastNotification
 
-ACTIONS = ["both", "timeout", "delete"]
+ACTIONS = ["timeout", "delete"]
 ACTION_LABELS = {
-    "both":   "Deletar + Timeout",
-    "timeout":"Somente timeout",
-    "delete": "Somente deletar"
+    "timeout":"Timeout",
+    "delete": "Deletar"
 }
 LABEL_TO_ACTION = {v: k for k, v in ACTION_LABELS.items()}
 
@@ -249,7 +248,7 @@ class ModerationPage(ctk.CTkFrame):
 
     def _on_action_change(self, *_):
         label = (self.punish_action_var.get() or "").strip()
-        action = LABEL_TO_ACTION.get(label, "both")
+        action = LABEL_TO_ACTION.get(label, "timeout")
 
         if action == "delete":
             self.timeout_secs.configure(state="disabled")
@@ -273,8 +272,8 @@ class ModerationPage(ctk.CTkFrame):
         self.permit_msg_template.delete(0, tk.END)
         self.permit_msg_template.insert(0, p.get('message_template', '@{target} pode postar 1 link por {seconds}s.'))
 
-        saved_action = (m.get('action') or 'both').lower()
-        self.punish_action_var.set(ACTION_LABELS.get(saved_action, ACTION_LABELS['both']))
+        saved_action = (m.get('action') or 'timeout').lower()
+        self.punish_action_var.set(ACTION_LABELS.get(saved_action, ACTION_LABELS['timeout']))
         self._on_action_change()
 
         self.timeout_secs.delete(0, tk.END); self.timeout_secs.insert(0, str(m.get('timeout_seconds', 10)))
@@ -311,7 +310,7 @@ class ModerationPage(ctk.CTkFrame):
             'message_template': self.permit_msg_template.get().strip() or '@{target} pode postar 1 link por {seconds}s.'
         }
 
-        m['action'] = LABEL_TO_ACTION.get(self.punish_action_var.get(), 'both')
+        m['action'] = LABEL_TO_ACTION.get(self.punish_action_var.get(), 'timeout')
         try:
             m['timeout_seconds'] = int(self.timeout_secs.get().strip() or '10')
         except ValueError:

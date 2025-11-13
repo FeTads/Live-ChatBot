@@ -1,13 +1,16 @@
+import cmd
 import socket
 import time
 import random
 import re
 from datetime import datetime
+from typing import Counter
 
 from services.twitch_api import TwitchAPIService
 from services.points_service import PointsService
 from services.moderation_service import ModerationService
 from services.variable_resolver import VariableResolver
+from services.giveaway_service import GiveawayService
 
 
 class TwitchChatBot:
@@ -38,9 +41,13 @@ class TwitchChatBot:
         self.chat_lines_this_tick = 0
 
         self.twitch_api = TwitchAPIService(self.config, self.gui.log_message)
-        self.points = PointsService(
-            storage_path=self.gui.settings.get('points_store_file', 'points.json'),
+        self.giveaways = GiveawayService(
+            storage_path=self.gui.settings.get('giveaways_store_file', 'giveaways.json'),
             logger=self.gui.log_message
+        )
+        self.giveaways = GiveawayService(
+            self.gui.settings.get('giveaways_store_file', 'giveaways.json'),
+            self.gui.log_message
         )
 
         self.moderation.api = self.api = self.twitch_api
@@ -110,6 +117,13 @@ class TwitchChatBot:
             user = user_match.group(1)
             message = message_match.group(1).strip()
 
+            try:
+                pg = self._find_giveaways_page()
+                if pg:
+                    self._ui_call(pg.feed_chat, user, message)
+            except Exception:
+                pass
+
             permissions = {'is_mod': False, 'is_broadcaster': False, 'is_vip': False}
             is_cheer = False
             bits_amount = 0
@@ -168,7 +182,7 @@ class TwitchChatBot:
 
             ps = self.gui.settings or {}
             points_on = ps.get("points_enabled", False)
-
+    
             def _cmd_maybe(name_key, enabled_key, default_cmd, default_enabled=True):
                 c = (ps.get(name_key, default_cmd) or default_cmd).strip().lower()
                 en = bool(ps.get(enabled_key, default_enabled))
@@ -195,8 +209,21 @@ class TwitchChatBot:
             )
             permit_cmd = (permit_cmd or "!permit").strip().lower()
 
+            try:
+                gs_on = bool(ps.get("giveaways_enabled", True))
+                g_join  = (ps.get("giveaways_cmd_join",  "!sorteio")     or "!sorteio").strip().lower()
+                g_draw  = (ps.get("giveaways_cmd_draw",  "!sortear")     or "!sortear").strip().lower()
+                g_start = (ps.get("giveaways_cmd_start", "!criasorteio") or "!criasorteio").strip().lower()
+                g_end   = (ps.get("giveaways_cmd_end",   "!encerrasorteio") or "!encerrasorteio").strip().lower()
+            except Exception:
+                gs_on = False
+                g_join = g_draw = g_start = g_end = ""
+
             candidate_cmds = points_cmds.union(config_cmds).union(mod_only_cmds)
             candidate_cmds.add(permit_cmd)
+
+            if gs_on:
+                candidate_cmds.update({g_join, g_draw, g_start, g_end})
 
             found_command, start_index = None, -1
             for part in message.split():
@@ -213,13 +240,14 @@ class TwitchChatBot:
 
             if found_command and start_index != -1:
                 full_command_message = message[start_index:].strip()
-                self.process_command(user, full_command_message, permissions)
+                self.process_command(user, full_command_message, permissions, tags=tags)
 
         except Exception as e:
             self.gui.log_message(f"Erro ao parsear: {e}", "error")
 
-    def process_command(self, user, message, permissions):
+    def process_command(self, user, message, permissions, tags=None):
         """Processar comandos do chat"""
+        tags = tags or {}
         cmd_parts = message.split(' ')
         cmd = cmd_parts[0].lower()
 
@@ -232,6 +260,123 @@ class TwitchChatBot:
         ps = self.gui.settings or {}
 
         points_on = ps.get("points_enabled", False)
+
+        try:
+            gs_on = bool(ps.get("giveaways_enabled", True))
+            cmd_join  = (ps.get("giveaways_cmd_join","!sorteio") or "!sorteio").strip().lower()
+            cmd_draw  = (ps.get("giveaways_cmd_draw","!sortear") or "!sortear").strip().lower()
+            cmd_start = (ps.get("giveaways_cmd_start","!criasorteio") or "!criasorteio").strip().lower()
+            cmd_end   = (ps.get("giveaways_cmd_end","!encerrasorteio") or "!encerrasorteio").strip().lower()
+        except Exception:
+            gs_on=False
+            cmd_join=cmd_draw=cmd_start=cmd_end=""
+
+        if gs_on and cmd:
+            if cmd == cmd_start:
+                title = " ".join(cmd_parts[1:]).strip() or "Sorteio"
+                self.giveaways.create(title)
+                self.send_message(f"🎁 Sorteio criado: {title} | Digite {cmd_join} para participar!")
+                self._notify_giveaways(winner=None, refresh=True)
+                return
+
+            if cmd == cmd_end:
+                self.gui.settings['giveaways_entries_locked'] = True
+                self.gui.save_settings()
+                self.send_message("🔒 Entradas encerradas. Aguarde o sorteio!")
+                try:
+                    if hasattr(self, "_notify_giveaways"):
+                        self._notify_giveaways(refresh=True)
+                except Exception:
+                    pass
+                return
+
+            if cmd == cmd_join:
+                ps = self.gui.settings or {}
+                if ps.get("giveaways_entries_locked", False):
+                    return
+                
+                cur = self.giveaways.current()
+                if not cur or cur.get("closed"):
+                    return
+
+                tickets = 1
+                if len(cmd_parts) >= 2:
+                    try:
+                        tickets = max(1, int(cmd_parts[1]))
+                    except Exception:
+                        tickets = 1
+
+                try:
+                    badges = tags.get("badges", "")
+                    is_sub = ("subscriber/" in badges) or ("founder/" in badges)
+                    if is_sub:
+                        tickets += int(ps.get("giveaways_sub_bonus", 0) or 0)
+                except Exception:
+                    pass
+
+                max_per_user = int(ps.get("giveaways_max_entries_per_user", 0) or 0)
+                if max_per_user > 0:
+                    try:
+                        counts = Counter(cur.get("entrants", []))
+                        current = int(counts.get(user, 0))
+                    except Exception:
+                        current = 0
+                    requested = tickets
+                    if current >= max_per_user:
+                        limit_msg = ps.get(
+                            "giveaways_limit_message",
+                            "@{user}, você já atingiu o limite de {max} bilhete(s)."
+                        )
+                        self.send_message(limit_msg.format(user=user, max=max_per_user, current=current, requested=requested))
+                        return
+                    if current + requested > max_per_user:
+                        tickets = max_per_user - current
+                        if tickets <= 0:
+                            limit_msg = ps.get(
+                                "giveaways_limit_message",
+                                "@{user}, você já atingiu o limite de {max} bilhete(s)."
+                            )
+                            self.send_message(limit_msg.format(user=user, max=max_per_user, current=current, requested=requested))
+                            return
+                else:
+                    pass
+                
+                price = int(ps.get("giveaways_entry_price", 0) or 0)
+                spent = 0
+                if price > 0:
+                    cost = price * tickets
+                    balance = self.points.get(user)
+                    if balance < cost:
+                        msg_no_points = ps.get(
+                            "giveaways_not_enough_points_msg",
+                            "❌ @{user}, você não tem pontos suficientes para entrar (custa {price})."
+                        )
+                        self.send_message(msg_no_points.format(user=user, price=price, spent=cost))
+                        return
+                    self.points.add(user, -cost)
+                    spent = cost
+
+                self.giveaways.enter(user, tickets=tickets)
+                if price > 0:
+                    msg_buy = ps.get(
+                        "giveaways_buy_message",
+                        "🎟️ @{user} comprou {tickets} bilhete(s) por {spent} pontos!"
+                    )
+                    self.send_message(msg_buy.format(user=user, tickets=tickets, spent=spent, price=price))
+
+                self._notify_giveaways(refresh=True)
+                return
+
+            if cmd == cmd_draw and (permissions.get("is_mod") or permissions.get("is_broadcaster")):
+                winner = self.giveaways.pick_winner()
+                if winner:
+                    cur = self.giveaways.close(winner=winner) or {}
+                    msg = ps.get("giveaways_draw_message", "🎉 @{winner} venceu o sorteio {title}!")
+                    self.send_message(msg.format(winner=winner, title=(cur.get("title","Sorteio"))))
+                    self._notify_giveaways(winner=winner, refresh=True)
+                else:
+                    self.send_message("⚠️ Ainda não há participantes.")
+                return
 
         def _cmd_active(name_key, enabled_key, default_cmd, default_enabled=True):
             c = (ps.get(name_key, default_cmd) or default_cmd).strip().lower()
@@ -590,3 +735,79 @@ class TwitchChatBot:
 
         activity_details = f"{bits} bits: {message[:20]}..."
         self.gui.add_activity_entry("cheer.message", user, activity_details)
+
+    def _find_giveaways_page(self):
+        try:
+            pages = getattr(self.gui, "pages", None)
+            if isinstance(pages, dict):
+                for key in ("sorteios", "giveaways", "giveaway", "giveaways_page"):
+                    pg = pages.get(key)
+                    if pg and hasattr(pg, "refresh_from_bot") and hasattr(pg, "set_winner_from_bot"):
+                        return pg
+                for pg in pages.values():
+                    if hasattr(pg, "refresh_from_bot") and hasattr(pg, "set_winner_from_bot"):
+                        return pg
+        except Exception:
+            pass
+
+        for name in ("giveaways_page", "sorteios_page", "giveaways", "sorteios"):
+            try:
+                pg = getattr(self.gui, name)
+                if pg and hasattr(pg, "refresh_from_bot") and hasattr(pg, "set_winner_from_bot"):
+                    return pg
+            except Exception:
+                pass
+        return None
+
+    def _ui_call(self, fn, *args):
+        try:
+            if hasattr(self.gui, "after"):
+                self.gui.after(0, fn, *args)
+            elif hasattr(self.gui, "root") and hasattr(self.gui.root, "after"):
+                self.gui.root.after(0, fn, *args)
+            else:
+                fn(*args)
+        except Exception as e:
+            try:
+                self.gui.log_message(f"giveaways ui call falhou: {e}", "warning")
+            except Exception:
+                pass
+
+    def _reload_giveaways(self):
+        try:
+            for m in ("reload", "reload_from_disk", "load", "refresh"):
+                if hasattr(self.giveaways, m) and callable(getattr(self.giveaways, m)):
+                    getattr(self.giveaways, m)()
+                    return
+            self.giveaways = GiveawayService(
+                storage_path=self.gui.settings.get('giveaways_store_file', 'giveaways.json'),
+                logger=self.gui.log_message
+            )
+        except Exception as e:
+            self.gui.log_message(f"⚠️ reload giveaways falhou: {e}", "warning")
+
+    def _notify_giveaways(self, winner=None, refresh=False, _retries=2):
+        try:
+            if refresh:
+                self._reload_giveaways()
+
+            page = getattr(self.gui, "pages", {}).get("sorteios")
+            if not page:
+                if _retries > 0:
+                    def _retry():
+                        self._notify_giveaways(winner=winner, refresh=refresh, _retries=_retries-1)
+                    if hasattr(self.gui, "after"):
+                        self.gui.after(400, _retry)
+                    elif hasattr(self.gui, "root") and hasattr(self.gui.root, "after"):
+                        self.gui.root.after(400, _retry)
+                return
+
+            if winner is not None and hasattr(page, "set_winner_from_bot"):
+                self.gui.after(0, lambda: page.set_winner_from_bot(winner))
+            if refresh and hasattr(page, "refresh_from_bot"):
+                self.gui.after(0, page.refresh_from_bot)
+        except Exception as e:
+            try:
+                self.gui.log_message(f"notify giveaways falhou: {e}", "warning")
+            except Exception:
+                pass

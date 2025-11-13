@@ -21,7 +21,8 @@ class UtilsMixin:
                 "moderação": self.moderation_page,
                 "activity": self.activity_page,
                 "tts": self.tts_page,
-                "pontos": self.points_page
+                "pontos": self.points_page,
+                "sorteios": self.giveaways_page
             }
             page_to_raise = page_map.get(name)
             if page_to_raise:

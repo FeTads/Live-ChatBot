@@ -17,6 +17,7 @@ from ui.moderation_page import ModerationPage
 from ui.timers_page import TimersPage
 from ui.tts_page import TTSPage
 from ui.points_page import PointsPage
+from ui.giveaways_page import GiveawaysPage
 
 class ModernTwitchBaseView(ctk.CTk):
         def __init__(self, root=None, *args, **kwargs):
@@ -120,10 +121,18 @@ class ModernTwitchBaseView(ctk.CTk):
             self.tts_page = TTSPage(self.content_frame, app=self)
             self.points_page = PointsPage(self.content_frame, app=self)
             self.moderation_page = ModerationPage(self.content_frame, app=self)
+            self.giveaways_page = GiveawaysPage(self.content_frame, app=self)
 
             for page in (self.connection_page, self.commands_page, self.timers_page, self.messages_page,
-                         self.chat_page, self.rewards_page, self.activity_page, self.tts_page, self.points_page, self.moderation_page):
+                         self.chat_page, self.rewards_page, self.activity_page, self.tts_page, self.points_page, self.moderation_page,
+                         self.giveaways_page):
                 page.grid(row=0, column=0, sticky="nsew")
+
+            if not hasattr(self, "pages") or not isinstance(self.pages, dict):
+                self.pages = {}
+            self.pages["sorteios"] = self.giveaways_page
+            self.pages["giveaways"] = self.giveaways_page
+            self.giveaways = self.giveaways_page
 
             self.select_frame_by_name("connect")
 

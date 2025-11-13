@@ -87,6 +87,14 @@ class NavigationFrame(ctk.CTkFrame):
         )
         self.nav_btn_points.grid(row=10, column=0, sticky="ew", padx=15, pady=5)
 
+
+        self.nav_btn_giveaways = ctk.CTkButton(
+            self, text="Sorteios",
+            command=lambda: self.controller.select_frame_by_name("sorteios"),
+            font=ctk.CTkFont(size=14, weight="bold"), height=40, corner_radius=8,
+            fg_color=self.colors['surface_dark'], hover_color=self.colors['surface_light']
+        )
+        self.nav_btn_giveaways.grid(row=11, column=0, sticky="ew", padx=15, pady=5)
         self.status_label = ctk.CTkLabel(
             self, text="● OFFLINE", text_color=self.colors['error'],
             font=ctk.CTkFont(size=14, weight="bold")
@@ -106,6 +114,7 @@ class NavigationFrame(ctk.CTkFrame):
             "activity": self.nav_btn_activity,
             "tts": self.nav_btn_tts,
             "pontos": self.nav_btn_points,
+            "sorteios": self.nav_btn_giveaways
         }
         for name, button in buttons.items():
             if name == selected_name:
