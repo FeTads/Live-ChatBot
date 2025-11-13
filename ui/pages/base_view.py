@@ -356,7 +356,13 @@ class ModernTwitchBaseView(ctk.CTk):
 
             response_preview = command_config.get('response', '??')
             response_preview = response_preview[:60] + "..." if len(response_preview) > 60 else response_preview
-            display_text = f"{command_name} → {response_preview}"
+            sound_path = command_config.get("sound")
+            sound_txt = ""
+            if sound_path:
+                filename = sound_path.replace("\\", "/").split("/")[-1]
+                sound_txt = f"\n - Som: {filename}"
+
+            display_text = f"{command_name} → {response_preview}{sound_txt}"
 
             item_label = ctk.CTkLabel(
                 item_frame, 

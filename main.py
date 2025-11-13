@@ -35,4 +35,4 @@ def main():
 if __name__ == "__main__":
     main()
 
-#use: python -m PyInstaller --onefile --noconsole --hidden-import=pygame --hidden-import=PIL --hidden-import=PIL._tkinter_finder --hidden-import=customtkinter --collect-all customtkinter --collect-all pygame --collect-all PIL main.py
+#use: python -m PyInstaller --onefile --noconsole --hidden-import=pygame --hidden-import=PIL --hidden-import=PIL._tkinter_finder --hidden-import=customtkinter --collect-all customtkinter --collect-all pygame --collect-all PIL --add-data "images;images" main.py

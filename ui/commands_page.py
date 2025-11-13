@@ -29,7 +29,6 @@ class CommandsPage(ctk.CTkFrame):
         add_cmd_frame.grid_columnconfigure(4, weight=0)
         add_cmd_frame.grid_columnconfigure(5, weight=0)
 
-
         ctk.CTkLabel(add_cmd_frame, text="Comando:", font=ctk.CTkFont(size=12)).grid(
             row=0, column=0, columnspan=2, sticky="sw", pady=(5, 0), padx=(0, 10))
         ctk.CTkLabel(add_cmd_frame, text="Resposta:", font=ctk.CTkFont(size=12)).grid(
@@ -37,10 +36,10 @@ class CommandsPage(ctk.CTkFrame):
         ctk.CTkLabel(add_cmd_frame, text="Quem pode usar:", font=ctk.CTkFont(size=12)).grid(
             row=0, column=4, sticky="sw", pady=(5, 0), padx=(25, 10))
 
-        self.app.new_cmd_var = tk.StringVar(value="")
+        self.app.new_cmd_var = tk.StringVar(value="!comando")
         self.app.new_cmd_entry = ctk.CTkEntry(
             add_cmd_frame, textvariable=self.app.new_cmd_var, width=150,
-            placeholder_text="!comando", 
+            placeholder_text="!comando",
             fg_color=self.app.colors['surface_light'],
             border_color=self.app.colors['twitch_purple'],
             placeholder_text_color=self.app.colors['text_secondary']
@@ -48,22 +47,17 @@ class CommandsPage(ctk.CTkFrame):
         self.app.new_cmd_entry.grid(row=1, column=0, columnspan=2, sticky="w", pady=(0, 5), padx=(0, 10))
 
         ctk.CTkLabel(add_cmd_frame, text="➡️", font=ctk.CTkFont(size=14)).grid(
-             row=1, column=2, pady=(0, 5), padx=(0, 0))
-        
-        if self.app.new_cmd_var.get() == "":
-            self.app.new_cmd_var.set("!comando")
+            row=1, column=2, pady=(0, 5), padx=(0, 0))
 
-        self.app.new_response_var = tk.StringVar(value="")
+        self.app.new_response_var = tk.StringVar(value="resposta do bot")
         self.app.new_response_entry = ctk.CTkEntry(
             add_cmd_frame, textvariable=self.app.new_response_var,
-            placeholder_text="O que o bot deve responder...", 
+            placeholder_text="O que o bot deve responder...",
             fg_color=self.app.colors['surface_light'],
             border_color=self.app.colors['twitch_purple'],
             placeholder_text_color=self.app.colors['text_secondary']
         )
         self.app.new_response_entry.grid(row=1, column=3, sticky="ew", pady=(0, 5), padx=(0, 10))
-        if self.app.new_response_var.get() == "":
-            self.app.new_response_var.set("resposta do bot")
 
         permission_levels = ["Everyone", "VIP", "Mod", "Broadcaster"]
         self.app.new_cmd_permission_var = tk.StringVar(value="Everyone")
@@ -85,14 +79,39 @@ class CommandsPage(ctk.CTkFrame):
             fg_color=self.app.colors['success'], hover_color='#00cc6a',
             font=ctk.CTkFont(size=12, weight="bold"), width=100, height=30
         )
-        self.app.add_cmd_button.grid(row=1, column=8, pady=(0, 5), padx=(5,0))
+        self.app.add_cmd_button.grid(row=1, column=8, pady=(0, 5), padx=(5, 0))
 
+        ctk.CTkLabel(add_cmd_frame, text="Som (Opcional):", font=ctk.CTkFont(size=12)).grid(
+            row=2, column=0, columnspan=9, sticky="sw", pady=(5, 0), padx=(0, 10)
+        )
+
+        sound_input_container = ctk.CTkFrame(add_cmd_frame, fg_color="transparent")
+        sound_input_container.grid(row=3, column=0, columnspan=9, sticky="ew", padx=(0, 10), pady=(0, 5))
+        sound_input_container.grid_columnconfigure(0, weight=1)
+        sound_input_container.grid_columnconfigure(1, weight=0)
+
+        self.app.new_cmd_sound_var = tk.StringVar(value="")
+        self.app.new_cmd_sound_entry = ctk.CTkEntry(
+            sound_input_container, textvariable=self.app.new_cmd_sound_var,
+            placeholder_text="Ex: sons/cara_gritando.mp3",
+            fg_color=self.app.colors['surface_light'],
+            border_color=self.app.colors['twitch_purple'],
+            placeholder_text_color=self.app.colors['text_secondary']
+        )
+        self.app.new_cmd_sound_entry.grid(row=0, column=0, sticky="ew", padx=(0, 5))
+
+        ctk.CTkButton(
+            sound_input_container,
+            text="Procurar...",
+            command=lambda: self.app.browse_sound_file_for_edit(self.app.new_cmd_sound_var),
+            font=ctk.CTkFont(size=11), width=80, height=30
+        ).grid(row=0, column=1, sticky="w")
 
         ctk.CTkLabel(add_cmd_frame, text="Cooldown (usuário):", font=ctk.CTkFont(size=12)).grid(
-            row=2, column=0, sticky="sw", pady=(2, 0), padx=(0, 4))
+            row=4, column=0, sticky="sw", pady=(2, 0), padx=(0, 4))
         ctk.CTkLabel(add_cmd_frame, text="Cooldown global:", font=ctk.CTkFont(size=12)).grid(
-            row=2, column=2, sticky="sw", pady=(2, 0), padx=(2, 4))
-        
+            row=4, column=2, sticky="sw", pady=(2, 0), padx=(2, 4))
+
         self.app.new_cmd_cd_user_var = tk.StringVar(value="10")
         self.app.new_cmd_cd_user_entry = ctk.CTkEntry(
             add_cmd_frame, textvariable=self.app.new_cmd_cd_user_var,
@@ -101,7 +120,7 @@ class CommandsPage(ctk.CTkFrame):
             border_color=self.app.colors['twitch_purple'],
             placeholder_text_color=self.app.colors['text_secondary']
         )
-        self.app.new_cmd_cd_user_entry.grid(row=3, column=0, sticky="ew", pady=(2, 0), padx=(0, 28))
+        self.app.new_cmd_cd_user_entry.grid(row=5, column=0, sticky="ew", pady=(2, 0), padx=(0, 28))
 
         self.app.new_cmd_cd_global_var = tk.StringVar(value="3")
         self.app.new_cmd_cd_global_entry = ctk.CTkEntry(
@@ -111,7 +130,7 @@ class CommandsPage(ctk.CTkFrame):
             border_color=self.app.colors['twitch_purple'],
             placeholder_text_color=self.app.colors['text_secondary']
         )
-        self.app.new_cmd_cd_global_entry.grid(row=3, column=2, sticky="ew", pady=(2, 0), padx=(0, 2))
+        self.app.new_cmd_cd_global_entry.grid(row=5, column=2, sticky="ew", pady=(2, 0), padx=(0, 2))
 
         self.app.new_cmd_bypass_mods_var = tk.BooleanVar(value=False)
         self.app.new_cmd_bypass_mods_switch = ctk.CTkSwitch(
@@ -121,7 +140,7 @@ class CommandsPage(ctk.CTkFrame):
             button_color=self.app.colors['twitch_purple'],
             button_hover_color=self.app.colors['twitch_purple_dark']
         )
-        self.app.new_cmd_bypass_mods_switch.grid(row=4, column=0, sticky="w", pady=(10, 2), padx=(2, 3))
+        self.app.new_cmd_bypass_mods_switch.grid(row=6, column=0, sticky="w", pady=(10, 2), padx=(2, 3))
         attach_tooltip(
             self.app.new_cmd_bypass_mods_switch,
             "Bypass",
@@ -179,4 +198,4 @@ class CommandsPage(ctk.CTkFrame):
             fg_color=self.app.colors['success'], hover_color='#00cc6a',
             font=ctk.CTkFont(size=12, weight="bold"), width=120, height=35
         )
-        self.app.save_button.pack(pady=5, padx=5)
+        self.app.save_button.pack(pady=5, padx=5)   

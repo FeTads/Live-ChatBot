@@ -533,6 +533,10 @@ class TwitchChatBot:
                 self.send_message(response)
             self.gui.arm_command_cooldown(cmd, user, command_config, permissions)
 
+            sound_path = command_config.get("sound")
+            if sound_path:
+                self.gui.root.after(0, self.gui.play_sound, sound_path)
+
     def generate_response(self, user, command_config, full_message):
         """Gera resposta para comando, com suporte a variáveis e contadores."""
         cmd_type = command_config.get('type', 'static')

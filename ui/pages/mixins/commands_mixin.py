@@ -78,7 +78,7 @@ class CommandsMixin:
 
 
         def add_command(self):
-            """Adicionar novo comando (com cooldowns e bypass)."""
+            """Adicionar novo comando (com cooldowns, bypass e som)."""
             cmd = self.new_cmd_var.get().strip()
             response = self.new_response_var.get().strip()
             permission = (self.new_cmd_permission_var.get() or "Everyone").lower()
@@ -86,26 +86,31 @@ class CommandsMixin:
             cd_global_str = (self.new_cmd_cd_global_var.get() or "").strip()
             cd_user_str = (self.new_cmd_cd_user_var.get() or "").strip()
             bypass_mods = bool(self.new_cmd_bypass_mods_var.get())
+            sound = self.new_cmd_sound_var.get().strip()
 
             if not cmd.startswith('!'):
                 cmd = '!' + cmd
 
             if not cmd or not response:
-                CustomDialog(master=self.root, title="⚠️ Aviso", text="Preencha o comando e a resposta!", colors=self.colors, dialog_type='warning')
+                CustomDialog(master=self.root, title="⚠️ Aviso",
+                            text="Preencha o comando e a resposta!",
+                            colors=self.colors, dialog_type='warning')
                 return
 
             try:
                 cd_global = int(cd_global_str) if cd_global_str else 3
             except ValueError:
                 cd_global = 3
+
             try:
                 cd_user = int(cd_user_str) if cd_user_str else 10
             except ValueError:
                 cd_user = 10
+
             cd_global = max(0, cd_global)
             cd_user = max(0, cd_user)
 
-            self.default_commands[cmd] = {
+            new_command_config = {
                 "response": response,
                 "type": "static",
                 "permission": permission,
@@ -114,18 +119,29 @@ class CommandsMixin:
                 "cooldown_bypass_mods": bypass_mods
             }
 
+            if sound:
+                new_command_config["sound"] = sound
+
+            self.default_commands[cmd] = new_command_config
+
             self.new_cmd_var.set("")
             self.new_response_var.set("")
             self.new_cmd_permission_var.set("Everyone")
             self.new_cmd_cd_global_var.set("3")
             self.new_cmd_cd_user_var.set("10")
-            self.new_cmd_bypass_mods_var.set(True)
+            self.new_cmd_bypass_mods_var.set(False)
+            self.new_cmd_sound_var.set("")
 
             self.refresh_commands_list()
             self.save_commands()
+
             if self.bot:
                 self.bot.config['commands'] = self.default_commands
-            self.log_message(f"✅ Comando {cmd} (perm: {permission}, cdG:{cd_global}s, cdU:{cd_user}s, bypassMods:{bypass_mods}) adicionado!", "success")
+
+            self.log_message(
+                f"✅ Comando {cmd} (perm:{permission}, cdG:{cd_global}s, cdU:{cd_user}s, bypassMods:{bypass_mods}) adicionado!",
+                "success"
+            )
 
         def edit_command(self):
             """Identifica o comando selecionado e abre o modal de edição."""
@@ -142,7 +158,7 @@ class CommandsMixin:
                 command_config = self.default_commands.get(selected_command_name)
 
                 if command_config:
-                    EditCommandDialog(self.root, self, selected_command_name, command_config)
+                    EditCommandDialog(self.root, self, selected_command_name, command_config, "command")
                 else:
                      CustomDialog(self.root, "Aviso", "Comando não encontrado na memória.", self.colors, 'warning')
             else:
@@ -275,7 +291,7 @@ class CommandsMixin:
             command_config = self.default_commands.get(command_name)
 
             if command_config:
-                EditCommandDialog(self.root, self, command_name, command_config)
+                EditCommandDialog(self.root, self, command_name, command_config, "command")
             else:
                 CustomDialog(self.root, "Aviso", "Comando não encontrado na memória.", self.colors, 'warning')
 

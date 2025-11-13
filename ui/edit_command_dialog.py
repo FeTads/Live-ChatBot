@@ -6,18 +6,17 @@ import textwrap
 from ui.custom_dialog import CustomDialog
 
 class EditCommandDialog(ctk.CTkToplevel):
-    def __init__(self, master, app, item_name, item_config):
+    def __init__(self, master, app, item_name, item_config, type):
         super().__init__(master)
         self.app = app
         self.original_item_name = item_name
         self.item_config = item_config 
-        self.is_reward = ('message' in item_config or 'sound' in item_config)
         self.colors = app.colors
 
         self.json_editor_visible = False
         self.json_content_visible = False
         self.advanced_mode_active = tk.BooleanVar(value=False)
-        self.is_reward = ('message' in item_config or 'sound' in item_config) 
+        self.is_reward = type == "reward"
 
         self.title(f"✏️ Editando: {item_name}")
         self.geometry("650x700")
@@ -98,7 +97,7 @@ class EditCommandDialog(ctk.CTkToplevel):
             ).grid(row=0, column=1, sticky="w", padx=(5, 0))
             current_row += 1
             
-        else: 
+        else:
             ctk.CTkLabel(main_edit_frame, text="Resposta:", font=ctk.CTkFont(size=14, weight="bold")).grid(
                  row=current_row, column=0, sticky="w", padx=10, pady=(10, 0))
             self.response_text = tk.StringVar(value=item_config.get("response", ""))
@@ -110,6 +109,33 @@ class EditCommandDialog(ctk.CTkToplevel):
             self.response_entry.grid(row=current_row + 1, column=0, columnspan=2, sticky="ew", padx=10, pady=(5, 10))
             self.input_widgets.append(self.response_entry)
             current_row += 2
+
+            ctk.CTkLabel(main_edit_frame, text="Som (Opcional):", font=ctk.CTkFont(size=14, weight="bold")).grid(
+                row=current_row, column=0, sticky="w", padx=10, pady=(10, 0))
+            current_row += 1
+
+            sound_input_container = ctk.CTkFrame(main_edit_frame, fg_color="transparent")
+            sound_input_container.grid(row=current_row, column=0, columnspan=2, sticky="ew", padx=10, pady=(5, 10))
+            sound_input_container.grid_columnconfigure(0, weight=1)
+            sound_input_container.grid_columnconfigure(1, weight=0)
+
+            self.sound_var = tk.StringVar(value=item_config.get("sound", ""))
+            self.sound_entry = ctk.CTkEntry(
+                sound_input_container,
+                textvariable=self.sound_var,
+                placeholder_text="Caminho para .wav ou .mp3...", fg_color=self.colors['surface_light'],
+                border_color=self.colors['twitch_purple']
+            )
+            self.sound_entry.grid(row=0, column=0, sticky="ew", padx=(0, 5))
+            self.input_widgets.append(self.sound_entry)
+
+            ctk.CTkButton(
+                sound_input_container,
+                text="Procurar...",
+                command=lambda: self.app.browse_sound_file_for_edit(self.sound_var),
+                font=ctk.CTkFont(size=11), width=80, height=30
+            ).grid(row=0, column=1, sticky="w", padx=(5, 0))
+            current_row += 1
 
             ctk.CTkLabel(main_edit_frame, text="Permissão:", font=ctk.CTkFont(size=14, weight="bold")).grid(
                  row=current_row, column=0, sticky="w", padx=10, pady=(10, 0))
@@ -160,7 +186,6 @@ class EditCommandDialog(ctk.CTkToplevel):
             self.input_widgets.extend([self.cd_global_entry, self.cd_user_entry])
             current_row += 1
 
-            # bypass mods
             self.cd_bypass_mods_var = tk.BooleanVar(value=bool(item_config.get("cooldown_bypass_mods", True)))
             self.cd_bypass_switch = ctk.CTkSwitch(
                 main_edit_frame, text="Bypass mods/streamer",
@@ -265,6 +290,7 @@ class EditCommandDialog(ctk.CTkToplevel):
                     
                 else: 
                     new_config['response'] = self.response_text.get().strip() if self.response_text.get().strip() else None
+                    new_config['sound'] = self.sound_var.get().strip() if self.sound_var.get().strip() else None
                     new_config['permission'] = self.permission_var.get().lower() if self.permission_var.get().lower() else 'everyone'
             
             try:

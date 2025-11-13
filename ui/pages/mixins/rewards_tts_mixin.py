@@ -350,7 +350,8 @@ class RewardsTtsMixin:
                         self.root, 
                         self, 
                         selected_reward_name, 
-                        reward_config
+                        reward_config,
+                        "reward"
                     )
                     dialog.wait_window()
                 else:

@@ -188,7 +188,7 @@ class ConnectionPage(ctk.CTkFrame):
             self._start_carousel_loop()
         else:
             self.carousel_image_label.configure(
-                text="[Erro: Nenhuma imagem de tutorial \nencontrada na pasta /assets/]",
+                text="[Erro: Nenhuma imagem de tutorial \nencontrada na pasta /images]",
                 fg_color=self.app.colors['surface'],
                 text_color=self.app.colors['text_secondary'],
                 corner_radius=8
